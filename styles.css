@@ -154,3 +154,32 @@ details[open]>summary::after{content:" ⌄"}
 
 button,summary,a{-webkit-tap-highlight-color:transparent}
 @media (prefers-color-scheme:dark){.tabs button.on{color:#06303f}}
+
+/* ---------- itinerary picks ---------- */
+.item.pick{position:relative;background:linear-gradient(90deg,rgba(255,107,87,.07),transparent);border-radius:12px;padding:10px 8px;margin:4px -8px;border-top:0}
+.chip.pick{background:var(--coral-soft);color:var(--coral)}
+.conflict{font-size:13px;font-weight:700;color:#c2541f;margin-top:5px}
+@media (prefers-color-scheme:dark){.conflict{color:var(--mango)}}
+.unpick{flex:none;align-self:flex-start;width:30px;height:30px;border-radius:50%;border:0;background:var(--sand);color:var(--muted);font-size:14px;font-weight:700}
+.add-custom{display:block;width:100%;margin-top:12px;padding:11px;border-radius:12px;border:1.5px dashed var(--coral);background:transparent;color:var(--coral);font-weight:800;font-size:15px}
+.rest .add{margin:5px 0 0 auto;padding:5px 12px;border-radius:999px;border:1.5px solid var(--coral);background:transparent;color:var(--coral);font-weight:800;font-size:13px}
+.rest .added{margin:5px 0 0 auto;font-size:13px;font-weight:800;color:var(--palm)}
+.add-dot{flex:none;align-self:center;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--coral);background:transparent;color:var(--coral);font-size:20px;font-weight:700;line-height:1;padding:0}
+.add-dot.on{display:flex;align-items:center;justify-content:center;border-color:var(--palm);background:var(--palm);color:#fff;font-size:16px}
+/* bottom sheet */
+.sheet-wrap{position:fixed;inset:0;z-index:50;background:rgba(6,30,40,0);display:flex;align-items:flex-end;justify-content:center;transition:background .2s}
+.sheet-wrap.on{background:rgba(6,30,40,.45)}
+.sheet{width:100%;max-width:520px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 18px calc(env(safe-area-inset-bottom) + 16px);
+  transform:translateY(100%);transition:transform .22s ease;box-shadow:0 -10px 30px rgba(0,0,0,.15)}
+.sheet-wrap.on .sheet{transform:none}
+.sheet h3{margin:0 0 14px;font-size:18px}
+.sheet label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:0 0 12px}
+.sheet input,.sheet select{display:block;width:100%;margin-top:5px;font-size:17px;padding:12px;border-radius:12px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.sheet-row{display:flex;gap:10px;margin-bottom:12px}
+.pill{flex:1;padding:13px;border-radius:14px;border:1.5px solid var(--sea);background:transparent;color:var(--sea-deep);font-size:16px;font-weight:800}
+@media (prefers-color-scheme:dark){.pill{color:var(--lagoon)}}
+.pill.solid{width:100%;border:0;background:linear-gradient(135deg,#ff8a5c,#ff6b57);color:#fff;margin-top:4px}
+.sheet-cancel{display:block;width:100%;margin-top:10px;padding:11px;border:0;background:transparent;color:var(--muted);font-size:15px;font-weight:700}
+#toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translate(-50%,20px);opacity:0;z-index:60;
+  background:var(--ink);color:var(--card);padding:10px 16px;border-radius:999px;font-weight:700;font-size:14px;transition:all .2s;pointer-events:none}
+#toast.on{opacity:1;transform:translate(-50%,0)}

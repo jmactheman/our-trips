@@ -40,6 +40,141 @@ async function load(pass) {
   return decrypt(await r.json(), pass);
 }
 
+/* ---------- itinerary picks: shared, encrypted, append-only event log (Supabase) ----------
+   Each add/remove is sealed with a key derived from the passphrase; the server stores only
+   ciphertext. Rows that don't decrypt (junk from strangers) are ignored. Unsent events wait in
+   a local outbox and retry, so a pick made on weak resort Wi-Fi isn't lost. */
+const SB_URL = 'https://mxcpjsdvdqhgutdzzggo.supabase.co/rest/v1/trip_picks';
+const SB_KEY = 'sb_publishable_pouH8Pbp8THffNLTjavPdA_3RzW0NCf';   // public by design; RLS = insert/read only
+const OUTBOX = 'tb_outbox', WHO = 'tb_who';
+let PASS = null, PICK_KEY = null, PICKS = [], picksTimer = null;
+const u8b64 = u => btoa(String.fromCharCode(...new Uint8Array(u)));
+async function pickKey() {
+  if (!PICK_KEY) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(PASS), 'PBKDF2', false, ['deriveKey']);
+    PICK_KEY = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode('our-trips/picks/v1'), iterations: 310000 },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  return PICK_KEY;
+}
+async function seal(ev) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, await pickKey(), new TextEncoder().encode(JSON.stringify(ev)));
+  return `v1.${u8b64(iv)}.${u8b64(ct)}`;
+}
+async function unseal(p) {
+  try {
+    const [v, iv, ct] = String(p).split('.');
+    if (v !== 'v1') return null;
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(iv) }, await pickKey(), b64(ct));
+    const ev = JSON.parse(new TextDecoder().decode(pt));
+    return ev && (ev.op === 'add' || ev.op === 'remove') && ev.pid ? ev : null;
+  } catch (_) { return null; }
+}
+const outbox = () => { try { return JSON.parse(localStorage.getItem(OUTBOX) || '[]'); } catch (_) { return []; } };
+const setOutbox = xs => localStorage.setItem(OUTBOX, JSON.stringify(xs));
+let SERVER_EVENTS = [];
+function fold() {
+  const m = new Map();
+  for (const ev of [...SERVER_EVENTS, ...outbox()]) { if (ev.op === 'add') m.set(ev.pid, ev); else m.delete(ev.pid); }
+  PICKS = [...m.values()].sort((a, b) => (a.date + (a.start || '99')).localeCompare(b.date + (b.start || '99')));
+}
+async function syncPicks() {
+  if (!PASS) return;
+  const pending = outbox(); const left = [];
+  for (const ev of pending) {   // flush queued events first
+    try {
+      const r = await fetch(SB_URL, { method: 'POST', headers: { apikey: SB_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ board: 'our-trips', payload: await seal(ev) }) });
+      if (!r.ok) left.push(ev);
+    } catch (_) { left.push(ev); }
+  }
+  setOutbox(left);
+  try {
+    const r = await fetch(`${SB_URL}?select=id,payload&board=eq.our-trips&order=id.asc&limit=2000`, { headers: { apikey: SB_KEY }, cache: 'no-store' });
+    if (r.ok) SERVER_EVENTS = (await Promise.all((await r.json()).map(row => unseal(row.payload)))).filter(Boolean);
+  } catch (_) { /* offline: keep what we have */ }
+  fold(); rerender();
+}
+function rerender() { if (!DATA) return; renderTrip(); if (resortVisible()) renderResort(); }
+const newId = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+async function whoAmI() {
+  let w = localStorage.getItem(WHO);
+  if (w) return w;
+  const names = (activeTrip()?.travelers || ['Meghan', 'Shea']);
+  w = await sheet(`<h3>Who's adding plans on this phone?</h3><div class="sheet-row">${names.map(n => `<button class="pill" data-val="${esc(n)}">${esc(n)}</button>`).join('')}</div>`);
+  if (w) localStorage.setItem(WHO, w);
+  return w;
+}
+async function addPick(fields) {
+  const by = await whoAmI(); if (!by) return;
+  const ev = { op: 'add', pid: newId(), by, ts: new Date().toISOString(), ...fields };
+  setOutbox([...outbox(), ev]); fold(); rerender(); toast(`Added to ${fmtShort(ev.date)} 🌺`);
+  syncPicks();
+}
+async function removePick(pid) {
+  const p = PICKS.find(x => x.pid === pid); if (!p) return;
+  if (!confirm(`Remove “${p.title}” from ${fmtShort(p.date)}?`)) return;
+  const by = localStorage.getItem(WHO) || '';
+  setOutbox([...outbox(), { op: 'remove', pid, by, ts: new Date().toISOString(), title: p.title, date: p.date, start: p.start }]);
+  fold(); rerender(); syncPicks();
+}
+function toast(msg) {
+  let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 1800);
+}
+/* bottom sheet: resolves with the clicked [data-val] or the form's values, or null */
+function sheet(inner) {
+  return new Promise(res => {
+    const wrap = document.createElement('div'); wrap.className = 'sheet-wrap';
+    wrap.innerHTML = `<div class="sheet">${inner}<button class="sheet-cancel">Cancel</button></div>`;
+    document.body.appendChild(wrap); requestAnimationFrame(() => wrap.classList.add('on'));
+    const done = v => { wrap.classList.remove('on'); setTimeout(() => wrap.remove(), 200); res(v); };
+    wrap.addEventListener('click', e => {
+      if (e.target === wrap || e.target.closest('.sheet-cancel')) return done(null);
+      const b = e.target.closest('[data-val]'); if (b) done(b.dataset.val);
+    });
+    const f = wrap.querySelector('form');
+    if (f) f.addEventListener('submit', e => { e.preventDefault(); done(Object.fromEntries(new FormData(f))); });
+  });
+}
+function timeOptions(from, to, sel) {
+  const out = []; let [h, m] = (from || '06:00').split(':').map(Number); const [eh, em] = (to || '23:30').split(':').map(Number);
+  while (h * 60 + m <= eh * 60 + em) { const v = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`; out.push(`<option value="${v}" ${v === sel ? 'selected' : ''}>${t12(v)}</option>`); m += 30; if (m >= 60) { h++; m -= 60; } }
+  return out.join('');
+}
+async function addRestaurant(date, r, meal) {
+  const last = r.end ? (() => { let [h, m] = r.end.split(':').map(Number); let t = h * 60 + m - 60; if (h === 0) t = 23 * 60; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`; })() : null;
+  const def = meal === 'dinner' ? (r.start <= '19:00' && (!last || last >= '19:00') ? '19:00' : r.start) : r.start;
+  const v = await sheet(`<h3>${esc(r.name)} · ${fmtShort(date)}</h3><form>
+    <label>Time<select name="time">${timeOptions(r.start, last || r.end, def)}</select></label>
+    <label>Note (optional)<input name="note" placeholder="e.g. ask for a table by the water" maxlength="200"></label>
+    ${r.note && /reserv/i.test(r.note) ? `<p class="small muted">${esc(r.note)}</p>` : ''}
+    <button class="pill solid" type="submit">Add to our plans</button></form>`);
+  if (!v) return;
+  addPick({ date, start: v.time, end: null, title: r.name, where: meal[0].toUpperCase() + meal.slice(1), kind: 'Dining', note: v.note || '',
+    needs_reservation: !!(r.note && /reserv/i.test(r.note)) });
+}
+async function addCustom(date) {
+  const v = await sheet(`<h3>Add to ${fmtShort(date)}</h3><form>
+    <label>What<input name="title" required maxlength="120" placeholder="e.g. Sunset drinks at Whisper"></label>
+    <label>Time<select name="time"><option value="">Any time</option>${timeOptions('06:00', '23:30', '')}</select></label>
+    <label>Note (optional)<input name="note" maxlength="200"></label>
+    <button class="pill solid" type="submit">Add to our plans</button></form>`);
+  if (!v || !v.title.trim()) return;
+  addPick({ date, start: v.time || null, end: null, title: v.title.trim(), where: '', kind: 'Our own', note: v.note || '' });
+}
+const mins = hm => { const [h, m] = hm.split(':').map(Number); return h * 60 + m; };
+function markConflicts(evs) {
+  const timed = evs.filter(e => e.time);
+  for (const e of timed) {
+    if (!e.pick) continue;
+    const s = mins(e.time), en = e.end ? mins(e.end) : s + 60;
+    const hit = timed.find(o => o !== e && o.date === e.date && mins(o.time) < en && s < (o.end ? mins(o.end) : mins(o.time) + 60));
+    if (hit) e.conflict = (hit.pick ? hit.what : hit.what.split(/\s+[-–(·]\s*|,/)[0]).trim();
+  }
+}
+
 /* ---------- tiny markdown (headings, bullets, bold, paragraphs) ---------- */
 function md(src) {
   const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>');
@@ -95,10 +230,23 @@ function tripEvents(trip) {
     ev.push({ date: r.date, time, what: r.what, detail: r.detail, status: r.status, icon: '★' });
   }
   for (const d of trip.deadlines || []) ev.push({ date: d.date, time: null, what: d.what, detail: '', status: 'deadline', icon: '⏰' });
+  for (const p of PICKS) if (p.date >= trip.start && p.date <= trip.end)
+    ev.push({ date: p.date, time: p.start || null, end: p.end || null, what: p.title, pick: p, icon: '🌺',
+      detail: [p.where, p.note].filter(Boolean).join(' · ') });
   ev.sort((a, b) => (a.date + (a.time || '99')).localeCompare(b.date + (b.time || '99')));
+  markConflicts(ev);
   return ev;
 }
 function eventHTML(e) {
+  if (e.pick) {
+    const p = e.pick, pending = outbox().some(o => o.pid === p.pid);
+    return `<div class="item pick"><div class="t">${e.time ? t12(e.time) : e.icon}</div><div class="b">
+      <div class="what">${esc(e.what)}</div>${e.detail ? `<div class="detail">${esc(e.detail)}</div>` : ''}
+      <span class="chip pick">Our pick · ${esc(p.by || '')}</span>${pending ? '<span class="chip kind">Saving…</span>' : ''}
+      ${p.needs_reservation ? '<span class="chip warn">Needs a reservation</span>' : ''}
+      ${e.conflict ? `<div class="conflict">⚠︎ Overlaps ${esc(e.conflict.length > 40 ? e.conflict.slice(0, 38) + '…' : e.conflict)}</div>` : ''}
+      </div><button class="unpick" data-unpick="${esc(p.pid)}" aria-label="Remove">✕</button></div>`;
+  }
   return `<div class="item"><div class="t">${e.time ? t12(e.time) : e.icon}</div><div class="b">
     <div class="what">${esc(e.what)}</div>${e.status ? statusChip(e.status) : ''}
     ${e.detail ? `<details><summary class="detail">Details</summary><div class="detail">${esc(e.detail)}</div></details>` : ''}</div></div>`;
@@ -156,7 +304,8 @@ function renderResort() {
   // our plans that day
   if (trip) {
     const mine = tripEvents(trip).filter(e => e.date === day.date && e.status !== 'deadline');
-    h += `<div class="card plans"><h2>🌺 Our plans · ${fmtDay(day.date)}</h2>${mine.length ? mine.map(eventHTML).join('') : '<div class="empty">Nothing booked — a free day.</div>'}</div>`;
+    h += `<div class="card plans"><h2>🌺 Our plans · ${fmtDay(day.date)}</h2>${mine.length ? mine.map(eventHTML).join('') : '<div class="empty">Nothing planned yet — tap ＋ on anything below.</div>'}
+      <button class="add-custom" data-add-custom="${day.date}">＋ Add something else</button></div>`;
   }
 
   // restaurants
@@ -164,9 +313,11 @@ function renderResort() {
   if (!resortMeal) { const hr = new Date().getHours(); resortMeal = day.date === t ? (hr < 11 ? 'breakfast' : hr < 16 ? 'lunch' : 'dinner') : 'dinner'; }
   h += `<div class="card"><h2>🍽️ Restaurants open</h2><div class="seg">${order.map(m => `<button data-meal="${m}" class="${m === resortMeal ? 'on' : ''}">${m[0].toUpperCase() + m.slice(1)} <span class="small">(${meals[m].length})</span></button>`).join('')}</div>`;
   const list = meals[resortMeal];
-  h += list.length ? list.map(r => `<div class="rest"><div class="row"><span class="name">${esc(r.name)}</span><span class="hrs">${t12(r.start)}–${t12(r.end)}</span></div>
+  const picked = (title, start) => PICKS.some(p => p.date === day.date && p.title === title && (!start || p.start === start));
+  h += list.length ? list.map((r, i) => `<div class="rest"><div class="row"><span class="name">${esc(r.name)}</span><span class="hrs">${t12(r.start)}–${t12(r.end)}</span></div>
       <div class="cui">${esc(r.cuisine)}</div>
-      <div class="tags">${r.club ? '<span class="chip club">Club only</span>' : ''}${r.dress ? `<span class="chip dress">${esc(r.dress)}</span>` : ''}${r.menu ? `<a class="menu-link" href="${esc(r.menu)}" target="_blank" rel="noopener">Menu ↗</a>` : ''}</div>
+      <div class="tags">${r.club ? '<span class="chip club">Club only</span>' : ''}${r.dress ? `<span class="chip dress">${esc(r.dress)}</span>` : ''}${r.menu ? `<a class="menu-link" href="${esc(r.menu)}" target="_blank" rel="noopener">Menu ↗</a>` : ''}
+      ${picked(r.name) ? '<span class="added">✓ In our plans</span>' : `<button class="add" data-add-rest="${resortMeal}|${i}">＋ Add</button>`}</div>
       ${r.note ? `<div class="note">${esc(r.note)}</div>` : ''}</div>`).join('')
     : '<div class="empty">Nothing listed.</div>';
   h += `<div class="small muted" style="margin-top:8px">The buffet, room service (24 h), Típico and the Sports Bar are open every day.</div></div>`;
@@ -178,11 +329,13 @@ function renderResort() {
   for (const p of ['Morning', 'Afternoon', 'Evening']) {
     const xs = acts.filter(a => part(a) === p); if (!xs.length) continue;
     h += `<div class="day-head">${p}</div>` + xs.map(a => {
+      const ai = acts.indexOf(a), on = picked(a.name, a.start);
       const show = a.kind === 'Evening show';
       const meta = [esc(a.where), !show && a.kind !== 'Activity' ? esc(a.kind) : ''].filter(Boolean).join(' · ');
       const body = `<div class="what">${esc(a.name)}${show ? ' <span class="chip show">Show</span>' : ''}</div><div class="detail">${meta}</div>`;
       return `<div class="item act ${show ? 'evening' : ''}"><div class="t">${t12(a.start)}<small>${t12(a.end)}</small></div><div class="b">${
-        a.desc ? `<details><summary>${body}</summary><div class="detail about">${esc(a.desc)}</div></details>` : body}</div></div>`;
+        a.desc ? `<details><summary>${body}</summary><div class="detail about">${esc(a.desc)}</div></details>` : body}</div>${
+        on ? '<span class="add-dot on" aria-label="In our plans">✓</span>' : `<button class="add-dot" data-add-act="${ai}" aria-label="Add to our plans">＋</button>`}</div>`;
     }).join('');
   }
   if (!acts.length) h += '<div class="empty">No activities listed.</div>';
@@ -218,7 +371,7 @@ async function open(pass) {
   let data;
   try { data = await load(pass); }
   catch (e) { if (e && e.name === 'OperationError') throw new BadPass(); throw e; }   // AES-GCM auth failure = wrong passphrase
-  DATA = data;
+  DATA = data; PASS = pass; PICK_KEY = null; fold();
   localStorage.setItem(PASS_KEY, pass);
   $('#lock').hidden = true; $('#app').hidden = false;
   try { render(); }
@@ -226,11 +379,21 @@ async function open(pass) {
     $('#tab-trip').innerHTML = `<div class="card"><h2>Something didn't display</h2><div class="small muted">${esc(e && (e.stack || e.message) || e)}</div></div>` + $('#tab-trip').innerHTML;
     $('#tab-trip').hidden = false;
   }
+  syncPicks();
+  clearInterval(picksTimer);
+  picksTimer = setInterval(() => { if (document.visibilityState === 'visible') syncPicks(); }, 60000);
 }
 document.addEventListener('click', e => {
   const tb = e.target.closest('#tabs button'); if (tb) return setTab(tb.dataset.tab);
   const db = e.target.closest('[data-day]'); if (db) { resortDay = db.dataset.day; resortMeal = null; renderResort(); return; }
-  const mb = e.target.closest('[data-meal]'); if (mb) { resortMeal = mb.dataset.meal; renderResort(); }
+  const mb = e.target.closest('[data-meal]'); if (mb) { resortMeal = mb.dataset.meal; renderResort(); return; }
+  const day = () => DATA.resort.days.find(d => d.date === resortDay);
+  const aa = e.target.closest('[data-add-act]');
+  if (aa) { const a = day().activities[+aa.dataset.addAct]; addPick({ date: resortDay, start: a.start, end: a.end, title: a.name, where: a.where, kind: a.kind, note: '' }); return; }
+  const ar = e.target.closest('[data-add-rest]');
+  if (ar) { const [meal, i] = ar.dataset.addRest.split('|'); addRestaurant(resortDay, day().meals[meal][+i], meal); return; }
+  const ac = e.target.closest('[data-add-custom]'); if (ac) { addCustom(ac.dataset.addCustom); return; }
+  const un = e.target.closest('[data-unpick]'); if (un) { removePick(un.dataset.unpick); }
 });
 $('#lockForm').addEventListener('submit', async e => {
   e.preventDefault(); $('#lockErr').hidden = true;
@@ -242,7 +405,7 @@ $('#lockForm').addEventListener('submit', async e => {
 });
 document.addEventListener('visibilitychange', async () => {   // refresh when she comes back to the app
   const p = localStorage.getItem(PASS_KEY);
-  if (document.visibilityState === 'visible' && p && DATA) { try { DATA = await load(p); render(); } catch (_) {} }
+  if (document.visibilityState === 'visible' && p && DATA) { try { DATA = await load(p); render(); } catch (_) {} syncPicks(); }
 });
 (async () => {
   const p = localStorage.getItem(PASS_KEY);
