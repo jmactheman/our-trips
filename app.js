@@ -117,26 +117,26 @@ function renderTrip() {
   }
   const tm = T.trip_mode || {};
   if (tm.markdown && (tm.meta?.active || '').toLowerCase() === 'yes') {
-    h += `<div class="card"><h2>${tm.meta.for ? 'For ' + fmtShort(tm.meta.for) : 'Today'}</h2><div class="md">${md(tm.markdown)}</div></div>`;
+    h += `<div class="card"><h2>☀️ ${tm.meta.for ? 'For ' + fmtShort(tm.meta.for) : 'Today'}</h2><div class="md">${md(tm.markdown)}</div></div>`;
   }
   if (trip) {
     const ev = tripEvents(trip); const byDate = {};
     ev.forEach(e => (byDate[e.date] = byDate[e.date] || []).push(e));
-    h += `<div class="card"><h2>Itinerary</h2>`;
+    h += `<div class="card"><h2>✈️ Itinerary</h2>`;
     for (const d of Object.keys(byDate).sort()) {
       if (d < t && trip.start > t) continue;
       h += `<div class="day"><div class="day-head">${fmtDay(d)}${d === t ? ' · today' : ''}</div>${byDate[d].map(eventHTML).join('')}</div>`;
     }
     h += `</div>`;
-    if ((trip.to_do || []).length) h += `<div class="card"><h2>To do</h2><div class="md"><ul>${trip.to_do.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
-    if (trip.notes) h += `<div class="card"><h2>Notes</h2><div class="small">${esc(trip.notes)}</div></div>`;
+    if ((trip.to_do || []).length) h += `<div class="card"><h2>📝 To do</h2><div class="md"><ul>${trip.to_do.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
+    if (trip.notes) h += `<div class="card"><h2>🐚 Notes</h2><div class="small">${esc(trip.notes)}</div></div>`;
   }
-  if (T.report_md) h += `<div class="card"><details><summary><h2 style="display:inline">Travel report</h2></summary><div class="md" style="margin-top:10px">${md(T.report_md)}</div></details></div>`;
+  if (T.report_md) h += `<div class="card"><details><summary><h2 style="display:inline">📰 Travel report</h2></summary><div class="md" style="margin-top:10px">${md(T.report_md)}</div></details></div>`;
   const later = (T.trips || []).filter(x => !trip || x.id !== trip.id);
-  if (later.length) h += `<div class="card"><h2>Coming up</h2>${later.map(x => `<div class="item"><div class="t">${fmtShort(x.start).replace(/^\w+ /, '')}</div><div class="b"><div class="what">${esc(x.stay?.name || x.name)}</div><div class="detail">${fmtShort(x.start)} – ${fmtShort(x.end)}${x.stay?.room ? ' · ' + esc(x.stay.room) : ''}</div>${x.notes ? `<details><summary class="detail">Notes</summary><div class="detail">${esc(x.notes)}</div></details>` : ''}</div></div>`).join('')}</div>`;
+  if (later.length) h += `<div class="card"><h2>🗓️ Coming up</h2>${later.map(x => `<div class="item"><div class="t">${fmtShort(x.start).replace(/^\w+ /, '')}</div><div class="b"><div class="what">${esc(x.stay?.name || x.name)}</div><div class="detail">${fmtShort(x.start)} – ${fmtShort(x.end)}${x.stay?.room ? ' · ' + esc(x.stay.room) : ''}</div>${x.notes ? `<details><summary class="detail">Notes</summary><div class="detail">${esc(x.notes)}</div></details>` : ''}</div></div>`).join('')}</div>`;
   for (const l of T.loyalty || []) {
     const q = l.qualifying; const pct = q && q.need ? Math.min(100, Math.round(100 * q.have / q.need)) : null;
-    h += `<div class="card"><h2>${esc(l.program)}</h2><div class="big" style="font-weight:700">${esc(l.tier || '')}</div>
+    h += `<div class="card"><h2>⭐ ${esc(l.program)}</h2><div class="big" style="font-weight:700">${esc(l.tier || '')}</div>
       ${l.points != null ? `<div>${Number(l.points).toLocaleString()} ${esc(l.points_name || 'points')}</div>` : ''}
       ${pct != null ? `<div class="progress"><div style="width:${pct}%"></div></div><div class="small muted">${Number(q.have).toLocaleString()} of ${Number(q.need).toLocaleString()} ${esc(q.label || '')}${l.expires ? ' · by ' + fmtShort(l.expires) : ''}</div>` : ''}
       ${l.notes ? `<details><summary class="small muted">Notes</summary><div class="small muted">${esc(l.notes)}</div></details>` : ''}</div>`;
@@ -156,40 +156,42 @@ function renderResort() {
   // our plans that day
   if (trip) {
     const mine = tripEvents(trip).filter(e => e.date === day.date && e.status !== 'deadline');
-    h += `<div class="card hero"><h2>Our plans · ${fmtDay(day.date)}</h2>${mine.length ? mine.map(eventHTML).join('') : '<div class="empty">Nothing booked — a free day.</div>'}</div>`;
+    h += `<div class="card plans"><h2>🌺 Our plans · ${fmtDay(day.date)}</h2>${mine.length ? mine.map(eventHTML).join('') : '<div class="empty">Nothing booked — a free day.</div>'}</div>`;
   }
 
   // restaurants
   const meals = day.meals; const order = ['breakfast', 'lunch', 'dinner'];
   if (!resortMeal) { const hr = new Date().getHours(); resortMeal = day.date === t ? (hr < 11 ? 'breakfast' : hr < 16 ? 'lunch' : 'dinner') : 'dinner'; }
-  h += `<div class="card"><h2>Restaurants open</h2><div class="seg">${order.map(m => `<button data-meal="${m}" class="${m === resortMeal ? 'on' : ''}">${m[0].toUpperCase() + m.slice(1)} <span class="small">(${meals[m].length})</span></button>`).join('')}</div>`;
+  h += `<div class="card"><h2>🍽️ Restaurants open</h2><div class="seg">${order.map(m => `<button data-meal="${m}" class="${m === resortMeal ? 'on' : ''}">${m[0].toUpperCase() + m.slice(1)} <span class="small">(${meals[m].length})</span></button>`).join('')}</div>`;
   const list = meals[resortMeal];
   h += list.length ? list.map(r => `<div class="rest"><div class="row"><span class="name">${esc(r.name)}</span><span class="hrs">${t12(r.start)}–${t12(r.end)}</span></div>
       <div class="cui">${esc(r.cuisine)}</div>
-      ${r.club ? '<span class="chip club">Club only</span>' : ''}${r.dress ? `<span class="chip dress">${esc(r.dress)}</span>` : ''}
-      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ''}
-      ${r.menu ? `<div class="note"><a href="${esc(r.menu)}" target="_blank" rel="noopener">See menu ↗</a></div>` : ''}</div>`).join('')
+      <div class="tags">${r.club ? '<span class="chip club">Club only</span>' : ''}${r.dress ? `<span class="chip dress">${esc(r.dress)}</span>` : ''}${r.menu ? `<a class="menu-link" href="${esc(r.menu)}" target="_blank" rel="noopener">Menu ↗</a>` : ''}</div>
+      ${r.note ? `<div class="note">${esc(r.note)}</div>` : ''}</div>`).join('')
     : '<div class="empty">Nothing listed.</div>';
   h += `<div class="small muted" style="margin-top:8px">The buffet, room service (24 h), Típico and the Sports Bar are open every day.</div></div>`;
 
   // activities
   const acts = day.activities;
   const part = a => { const hr = +(a.start || '0').slice(0, 2); return a.kind === 'Evening show' || hr >= 18 ? 'Evening' : hr >= 12 ? 'Afternoon' : 'Morning'; };
-  h += `<div class="card"><h2>Activities & shows</h2>`;
+  h += `<div class="card"><h2>🎶 Activities & shows</h2>`;
   for (const p of ['Morning', 'Afternoon', 'Evening']) {
     const xs = acts.filter(a => part(a) === p); if (!xs.length) continue;
-    h += `<div class="day-head">${p}</div>` + xs.map(a => `<div class="item ${a.kind === 'Evening show' ? 'evening' : ''}"><div class="t">${t12(a.start)}<small>${t12(a.end)}</small></div><div class="b">
-      <div class="what">${esc(a.name)}</div><div class="detail">${esc(a.where)}</div>
-      <span class="chip ${a.kind === 'Evening show' ? 'show' : 'kind'}">${esc(a.kind)}</span>
-      ${a.desc ? `<details><summary class="detail">About</summary><div class="detail">${esc(a.desc)}</div></details>` : ''}</div></div>`).join('');
+    h += `<div class="day-head">${p}</div>` + xs.map(a => {
+      const show = a.kind === 'Evening show';
+      const meta = [esc(a.where), !show && a.kind !== 'Activity' ? esc(a.kind) : ''].filter(Boolean).join(' · ');
+      const body = `<div class="what">${esc(a.name)}${show ? ' <span class="chip show">Show</span>' : ''}</div><div class="detail">${meta}</div>`;
+      return `<div class="item act ${show ? 'evening' : ''}"><div class="t">${t12(a.start)}<small>${t12(a.end)}</small></div><div class="b">${
+        a.desc ? `<details><summary>${body}</summary><div class="detail about">${esc(a.desc)}</div></details>` : body}</div></div>`;
+    }).join('');
   }
   if (!acts.length) h += '<div class="empty">No activities listed.</div>';
   h += `</div>`;
 
   // bars
-  h += `<div class="card"><details><summary><h2 style="display:inline">Bars open (${day.bars.length})</h2></summary>${day.bars.map(b => `<div class="rest"><div class="row"><span class="name">${esc(b.name)}</span><span class="hrs">${t12(b.start)}–${t12(b.end)}</span></div><div class="cui">${esc(b.drinks)}</div>${b.club ? '<span class="chip club">Club only</span>' : ''}</div>`).join('')}</details></div>`;
+  h += `<div class="card"><details><summary><h2 style="display:inline">🍹 Bars open (${day.bars.length})</h2></summary>${day.bars.map(b => `<div class="rest"><div class="row"><span class="name">${esc(b.name)}</span><span class="hrs">${t12(b.start)}–${t12(b.end)}</span></div><div class="cui">${esc(b.drinks)}</div>${b.club ? '<span class="chip club">Club only</span>' : ''}</div>`).join('')}</details></div>`;
 
-  if ((R.tips || []).length) h += `<div class="card"><h2>Good to know</h2><div class="md"><ul>${R.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
+  if ((R.tips || []).length) h += `<div class="card"><h2>🐢 Good to know</h2><div class="md"><ul>${R.tips.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
   h += `<div class="small muted">From the resort's own app${R.app_read_at ? ', checked ' + esc(R.app_read_at) : ''}. Times are resort time (Cancún). The resort can change the schedule.</div>`;
   el.innerHTML = h;
 }
@@ -211,10 +213,19 @@ function render() {
   $('#foot').textContent = `Updated ${DATA.published ? new Date(DATA.published).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : ''}. Confirmation numbers are left out on purpose.`;
   setTab(rv && sessionStorage.getItem('tb_tab') === 'resort' ? 'resort' : 'trip');
 }
+class BadPass extends Error {}
 async function open(pass) {
-  DATA = await load(pass);
+  let data;
+  try { data = await load(pass); }
+  catch (e) { if (e && e.name === 'OperationError') throw new BadPass(); throw e; }   // AES-GCM auth failure = wrong passphrase
+  DATA = data;
   localStorage.setItem(PASS_KEY, pass);
-  $('#lock').hidden = true; $('#app').hidden = false; render();
+  $('#lock').hidden = true; $('#app').hidden = false;
+  try { render(); }
+  catch (e) {   // never lock her out because of a display bug — show what broke instead
+    $('#tab-trip').innerHTML = `<div class="card"><h2>Something didn't display</h2><div class="small muted">${esc(e && (e.stack || e.message) || e)}</div></div>` + $('#tab-trip').innerHTML;
+    $('#tab-trip').hidden = false;
+  }
 }
 document.addEventListener('click', e => {
   const tb = e.target.closest('#tabs button'); if (tb) return setTab(tb.dataset.tab);
@@ -223,7 +234,11 @@ document.addEventListener('click', e => {
 });
 $('#lockForm').addEventListener('submit', async e => {
   e.preventDefault(); $('#lockErr').hidden = true;
-  try { await open($('#pass').value.trim()); } catch (err) { $('#lockErr').hidden = false; }
+  try { await open($('#pass').value.trim()); }
+  catch (err) {
+    $('#lockErr').textContent = err instanceof BadPass ? "That passphrase didn't work." : "Couldn't load the trip data — check your connection and try again.";
+    $('#lockErr').hidden = false;
+  }
 });
 document.addEventListener('visibilitychange', async () => {   // refresh when she comes back to the app
   const p = localStorage.getItem(PASS_KEY);
@@ -231,6 +246,12 @@ document.addEventListener('visibilitychange', async () => {   // refresh when sh
 });
 (async () => {
   const p = localStorage.getItem(PASS_KEY);
-  if (p) { try { await open(p); return; } catch (_) { localStorage.removeItem(PASS_KEY); } }
+  if (p) {
+    try { await open(p); return; }
+    catch (e) {
+      if (e instanceof BadPass) localStorage.removeItem(PASS_KEY);   // passphrase changed; ask again
+      else { $('#lockErr').textContent = "Couldn't load the trip data — check your connection and try again."; $('#lockErr').hidden = false; }
+    }
+  }
   $('#lock').hidden = false;
 })();

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#0f5e5a">
+<meta name="theme-color" content="#ff8a5c">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Our Trips">
@@ -12,13 +12,16 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-180.png">
-<link rel="stylesheet" href="styles.css?v=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" media="print" onload="this.media='all'">
+<link rel="stylesheet" href="styles.css?v=8">
 </head>
 <body>
 <div id="lock" class="lock" hidden>
   <form id="lockForm" class="lock-card" autocomplete="off">
-    <div class="lock-mark">✈︎</div>
-    <h1>Our Trips</h1>
+    <div class="lock-mark">🌴</div>
+    <h1 class="script">Our Trips</h1>
     <p>Enter the passphrase to open.</p>
     <input id="pass" type="password" placeholder="Passphrase" autocomplete="current-password" required>
     <button type="submit">Open</button>
@@ -28,7 +31,7 @@
 
 <div id="app" hidden>
   <header class="top">
-    <div class="top-title" id="topTitle">Our Trips</div>
+    <div class="top-title script" id="topTitle">Our Trips</div>
     <div class="top-sub" id="topSub"></div>
   </header>
   <nav class="tabs" id="tabs">
@@ -41,6 +44,6 @@
   </main>
   <footer class="foot" id="foot"></footer>
 </div>
-<script src="app.js?v=1"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
