@@ -183,3 +183,9 @@ button,summary,a{-webkit-tap-highlight-color:transparent}
 #toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 90px);transform:translate(-50%,20px);opacity:0;z-index:60;
   background:var(--ink);color:var(--card);padding:10px 16px;border-radius:999px;font-weight:700;font-size:14px;transition:all .2s;pointer-events:none}
 #toast.on{opacity:1;transform:translate(-50%,0)}
+/* room service */
+.seg.mini{margin-top:-4px}
+.seg.mini button{font-size:12.5px;padding:6px 4px}
+.rs-item{font-size:14.5px;padding:5px 0;border-top:1px dashed var(--line)}
+.rs-item:first-of-type{border-top:0}
+#rsCard .meal-title{color:var(--coral);font-weight:800;margin:16px 0 2px}

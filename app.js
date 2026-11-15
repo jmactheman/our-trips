@@ -9,6 +9,7 @@ const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 let DATA = null;
 let resortDay = null;
 let resortMeal = null;
+let rsMenu = 'club', rsMeal = null, rsOpen = false;
 
 /* ---------- dates ---------- */
 const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
@@ -322,6 +323,21 @@ function renderResort() {
     : '<div class="empty">Nothing listed.</div>';
   h += `<div class="small muted" style="margin-top:8px">The buffet, room service (24 h), Típico and the Sports Bar are open every day.</div></div>`;
 
+  // room service (same every day)
+  const RS = R.room_service || [];
+  if (RS.length) {
+    if (!rsMeal) { const hm = new Date().toTimeString().slice(0, 5); rsMeal = hm >= '05:30' && hm < '11:30' ? 'Breakfast' : hm >= '11:30' && hm < '23:30' ? 'Lunch & dinner' : 'Night'; }
+    const keys = [...new Set(RS.map(m => m.key))];
+    const cur = RS.find(m => m.key === rsMenu && m.meal === rsMeal) || RS.find(m => m.meal === rsMeal) || RS[0];
+    h += `<div class="card"><details id="rsCard" ${rsOpen ? 'open' : ''}><summary><h2 style="display:inline">🛎️ Room service</h2></summary>
+      <div class="small muted" style="margin:8px 0 10px">Around the clock and included. Delivery takes about 35 minutes, and they'll set dinner up on your terrace if you ask. Your suite gets the Club menu.</div>
+      <div class="seg">${['Breakfast', 'Lunch & dinner', 'Night'].map(m => `<button data-rs-meal="${m}" class="${m === cur.meal ? 'on' : ''}">${m === 'Lunch & dinner' ? 'All day' : m}</button>`).join('')}</div>
+      ${keys.length > 1 ? `<div class="seg mini">${keys.map(k => `<button data-rs-menu="${k}" class="${k === cur.key ? 'on' : ''}">${k === 'club' ? 'Club menu' : 'Standard menu'}</button>`).join('')}</div>` : ''}
+      <div class="small muted">${esc(cur.menu)} · ${esc(cur.meal)} · served ${esc(cur.hours || '')}</div>
+      ${cur.sections.map(sc => `<div class="meal-title">${esc(sc.name)}</div>${sc.note ? `<div class="small muted">${esc(sc.note)}</div>` : ''}${sc.items.map(i => `<div class="rs-item"><b>${esc(i.name)}</b>${i.desc ? ` <span class="muted">· ${esc(i.desc)}</span>` : ''}</div>`).join('')}`).join('')}
+      </details></div>`;
+  }
+
   // activities
   const acts = day.activities;
   const part = a => { const hr = +(a.start || '0').slice(0, 2); return a.kind === 'Evening show' || hr >= 18 ? 'Evening' : hr >= 12 ? 'Afternoon' : 'Morning'; };
@@ -387,6 +403,8 @@ document.addEventListener('click', e => {
   const tb = e.target.closest('#tabs button'); if (tb) return setTab(tb.dataset.tab);
   const db = e.target.closest('[data-day]'); if (db) { resortDay = db.dataset.day; resortMeal = null; renderResort(); return; }
   const mb = e.target.closest('[data-meal]'); if (mb) { resortMeal = mb.dataset.meal; renderResort(); return; }
+  const rm = e.target.closest('[data-rs-meal]'); if (rm) { rsMeal = rm.dataset.rsMeal; rsOpen = true; renderResort(); return; }
+  const rk = e.target.closest('[data-rs-menu]'); if (rk) { rsMenu = rk.dataset.rsMenu; rsOpen = true; renderResort(); return; }
   const day = () => DATA.resort.days.find(d => d.date === resortDay);
   const aa = e.target.closest('[data-add-act]');
   if (aa) { const a = day().activities[+aa.dataset.addAct]; addPick({ date: resortDay, start: a.start, end: a.end, title: a.name, where: a.where, kind: a.kind, note: '' }); return; }
@@ -418,3 +436,5 @@ document.addEventListener('visibilitychange', async () => {   // refresh when sh
   }
   $('#lock').hidden = false;
 })();
+
+document.addEventListener('toggle', e => { if (e.target && e.target.id === 'rsCard') rsOpen = e.target.open; }, true);
