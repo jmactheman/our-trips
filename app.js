@@ -9,7 +9,7 @@ const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 let DATA = null;
 let resortDay = null;
 let resortMeal = null;
-let rsMenu = 'club', rsMeal = null, rsOpen = false;
+let rsMenu = 'club', rsMeal = null, rsOpen = false, drKey = 'wine', drOpen = false;
 
 /* ---------- dates ---------- */
 const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
@@ -338,6 +338,22 @@ function renderResort() {
       </details></div>`;
   }
 
+  // wine & spirits (priced lists)
+  const DR = R.drinks || [];
+  if (DR.length) {
+    const cur = DR.find(x => x.key === drKey) || DR[0];
+    h += `<div class="card"><details id="drCard" ${drOpen ? 'open' : ''}><summary><h2 style="display:inline">🍷 Wine & spirits</h2></summary>
+      <div class="small muted" style="margin:8px 0 10px">Premium bottles, pours and tastings with a price, on top of the drinks included in your stay. Prices in US dollars; La Cava also does tastings.</div>
+      <div class="seg">${DR.map(x => `<button data-dr="${x.key}" class="${x.key === cur.key ? 'on' : ''}">${esc(x.label)}</button>`).join('')}</div>
+      ${cur.sections.map(sc => {
+        let last = null;
+        const rows = sc.items.map(i => { const g = i.group && i.group !== last ? `<div class="dr-group">${esc(i.group)}</div>` : ''; last = i.group;
+          return `${g}<div class="dr-item"><div class="row"><b>${esc(i.name)}</b><span class="dr-price">${esc(i.price)}</span></div>${i.desc ? `<div class="small muted">${esc(i.desc)}</div>` : ''}</div>`; }).join('');
+        return `<details class="dr-sec"><summary>${esc(sc.name)} <span class="small muted">(${sc.items.length})</span></summary>${rows}</details>`;
+      }).join('')}
+      </details></div>`;
+  }
+
   // activities
   const acts = day.activities;
   const part = a => { const hr = +(a.start || '0').slice(0, 2); return a.kind === 'Evening show' || hr >= 18 ? 'Evening' : hr >= 12 ? 'Afternoon' : 'Morning'; };
@@ -404,6 +420,7 @@ document.addEventListener('click', e => {
   const db = e.target.closest('[data-day]'); if (db) { resortDay = db.dataset.day; resortMeal = null; renderResort(); return; }
   const mb = e.target.closest('[data-meal]'); if (mb) { resortMeal = mb.dataset.meal; renderResort(); return; }
   const rm = e.target.closest('[data-rs-meal]'); if (rm) { rsMeal = rm.dataset.rsMeal; rsOpen = true; renderResort(); return; }
+  const dk = e.target.closest('[data-dr]'); if (dk) { drKey = dk.dataset.dr; drOpen = true; renderResort(); return; }
   const rk = e.target.closest('[data-rs-menu]'); if (rk) { rsMenu = rk.dataset.rsMenu; rsOpen = true; renderResort(); return; }
   const day = () => DATA.resort.days.find(d => d.date === resortDay);
   const aa = e.target.closest('[data-add-act]');
@@ -437,4 +454,4 @@ document.addEventListener('visibilitychange', async () => {   // refresh when sh
   $('#lock').hidden = false;
 })();
 
-document.addEventListener('toggle', e => { if (e.target && e.target.id === 'rsCard') rsOpen = e.target.open; }, true);
+document.addEventListener('toggle', e => { if (e.target && e.target.id === 'rsCard') rsOpen = e.target.open; if (e.target && e.target.id === 'drCard') drOpen = e.target.open; }, true);

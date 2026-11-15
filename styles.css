@@ -189,3 +189,12 @@ button,summary,a{-webkit-tap-highlight-color:transparent}
 .rs-item{font-size:14.5px;padding:5px 0;border-top:1px dashed var(--line)}
 .rs-item:first-of-type{border-top:0}
 #rsCard .meal-title{color:var(--coral);font-weight:800;margin:16px 0 2px}
+/* wine & spirits */
+.dr-sec{border-top:1px dashed var(--line);padding:10px 0}
+.dr-sec>summary{font-weight:800;color:var(--coral);font-size:15px}
+.dr-group{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--sea-deep);margin:12px 0 2px}
+@media (prefers-color-scheme:dark){.dr-group{color:var(--lagoon)}}
+.dr-item{padding:6px 0}
+.dr-item .row{display:flex;justify-content:space-between;gap:10px;align-items:baseline;font-size:15px}
+.dr-price{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700;color:var(--sea-deep);font-size:14px}
+@media (prefers-color-scheme:dark){.dr-price{color:var(--lagoon)}}
