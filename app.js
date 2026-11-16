@@ -253,6 +253,19 @@ function eventHTML(e) {
     ${e.detail ? `<details><summary class="detail">Details</summary><div class="detail">${esc(e.detail)}</div></details>` : ''}</div></div>`;
 }
 
+/* The agent may write the brief the night before ("Good evening", "## Tomorrow") or the same
+   morning; its day-plan section is always about meta.for. Label it relative to the real today. */
+function tripModeMd(tm, t) {
+  const f = tm.meta?.for; let m = tm.markdown;
+  if (!f) return m;
+  const n = daysBetween(t, f);
+  const rel = n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : n === -1 ? 'Yesterday' : fmtShort(f);
+  const label = n === 0 || n === 1 || n === -1 ? `${rel} · ${fmtShort(f)}` : rel;
+  m = m.replace(/^##\s*(Tomorrow|Today|Tonight)\b.*$/gim, `## ${label}`);
+  m = m.replace(/^##\s*Good (morning|afternoon|evening)\s*$/gim, '## The big picture');
+  return m;
+}
+
 /* ---------- Our trip tab ---------- */
 function renderTrip() {
   const el = $('#tab-trip'); const T = DATA.travel; const trip = activeTrip(); const t = todayISO();
@@ -266,7 +279,7 @@ function renderTrip() {
   }
   const tm = T.trip_mode || {};
   if (tm.markdown && (tm.meta?.active || '').toLowerCase() === 'yes') {
-    h += `<div class="card"><h2>☀️ ${tm.meta.for ? 'For ' + fmtShort(tm.meta.for) : 'Today'}</h2><div class="md">${md(tm.markdown)}</div></div>`;
+    h += `<div class="card"><h2>☀️ ${tm.meta.for ? 'For ' + fmtShort(tm.meta.for) : 'Today'}</h2><div class="md">${md(tripModeMd(tm, t))}</div></div>`;
   }
   if (trip) {
     const ev = tripEvents(trip); const byDate = {};
