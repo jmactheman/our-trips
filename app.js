@@ -207,6 +207,13 @@ function statusChip(s) {
   const ok = /confirm|booked|done|paid|on time/i.test(s) && !/not|unpaid|expired|cancel/i.test(s);
   return `<span class="chip ${ok ? 'ok' : 'warn'}">${esc(s)}</span>`;
 }
+const normT = x => (x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function isPickCopy(r, time) {
+  if ((r.status || '').toLowerCase() === 'planned' && /our trips/i.test(r.detail || '')) return true;
+  const w = normT(r.what);
+  return PICKS.some(p => p.date === r.date && (!time || !p.start || p.start === time) && normT(p.title) && w.startsWith(normT(p.title)));
+}
+
 function tripEvents(trip) {
   const ev = [];
   for (const f of trip.flights || [])
@@ -228,6 +235,9 @@ function tripEvents(trip) {
   for (const r of trip.reservations || []) {
     const m = (r.what || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
     let time = null; if (m) { let h = +m[1] % 12; if (/pm/i.test(m[3])) h += 12; time = `${String(h).padStart(2, '0')}:${m[2]}`; }
+    // The agent copies app picks into its records as "planned" items. The pick log is the live
+    // source (it shows removals at once), so skip the agent's copy of any Our Trips plan.
+    if (isPickCopy(r, time)) continue;
     ev.push({ date: r.date, time, what: r.what, detail: r.detail, status: r.status, icon: '★' });
   }
   for (const d of trip.deadlines || []) ev.push({ date: d.date, time: null, what: d.what, detail: '', status: 'deadline', icon: '⏰' });
