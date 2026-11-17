@@ -211,7 +211,12 @@ const normT = x => (x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 function isPickCopy(r, time) {
   if ((r.status || '').toLowerCase() === 'planned' && /our trips/i.test(r.detail || '')) return true;
   const w = normT(r.what);
-  return PICKS.some(p => p.date === r.date && (!time || !p.start || p.start === time) && normT(p.title) && w.startsWith(normT(p.title)));
+  return PICKS.some(p => {
+    const pt = normT(p.title);
+    if (!pt || p.date !== r.date) return false;
+    if (w.startsWith(pt) && (!time || !p.start || p.start === time)) return true;
+    return !!(time && p.start === time && w.includes(pt));   // e.g. "Miile Spa - Nidra Treatment, 10:00 AM"
+  });
 }
 
 function tripEvents(trip) {
